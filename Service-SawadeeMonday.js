@@ -5,6 +5,20 @@ const app = express();
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
+const multer = require('multer');
+
+const uploadDirectory = 'uploads/';
+
+const storage = multer.diskStorage({
+    destination:function(req,file,cb){
+        cb(null,uploadDirectory);
+    },
+    filename:function(req,file,cb){
+        cb(null,file.fieldname+'-'+Date.now()+'.jpg');
+    }
+});
+
+const upload = multer({storage:storage})
 
 app.use(cors({
     origin:'*'
@@ -59,7 +73,18 @@ app.get('/Type_player',(req,res) => {
    });
 });// API ดึงประเภทมือขึ้นมา
 
-app.post('/Add_player',(req,res) =>{
+
+
+app.use('/uploads', express.static('uploads'));
+app.post('/Add_player',upload.single('image'),(req,res) =>{
+
+    upload.single(req.body.image);
+
+    console.log(req.body.Name);
+
+    console.log(req.file.filename);
+
+    const path_server  = "http://127.0.0.1:7777/"+uploadDirectory+req.file.filename; // ที่อยู่ในการลง DB แล้วเวลาเรียกก็สามารถใช้ได้เลย
 
     //res.json(true);
     const sql = "INSERT INTO Player SET ?";
@@ -67,8 +92,9 @@ app.post('/Add_player',(req,res) =>{
         Player_name:req.body.Name,
         Player_tel:req.body.Phone,
         Type_id:req.body.Type,
-        Player_photo:req.body.Photo,
-        Player_registertime:new Date()
+        Player_photo:path_server,
+        Player_registertime:new Date(),
+        Player_status:1
     };
    
     con.query(sql,value,function(err,result){
@@ -78,8 +104,31 @@ app.post('/Add_player',(req,res) =>{
             console.log(err);
         }
         console.log("Number of recode inserted:" + result.insertId);
+        console.log(req.file);
     });
 });//เพิ่มผู้เล่นใหม่เข้ามาในระบบ
+
+app.post('/Deleteplayer',(req,res)=>{
+    
+    const wheredata = {
+        Player_id : req.body.Player_id
+    }
+    const sql = "UPDATE Player SET? WHERE ?";
+    const update_data = {
+        Player_status : 0
+    }
+    
+    con.query(sql,[update_data,wheredata],(err,results) =>{
+        try{
+            if(results){
+                res.json(true);
+            }
+        }catch(error){
+            console.log(error);
+        }
+    });
+    //con.end();
+});
 
 app.get('/Allplayer',(req,res) =>{
     console.log("Hello Function get All Player");
@@ -87,6 +136,7 @@ app.get('/Allplayer',(req,res) =>{
         res.json(result);
     });
 });
+
 
 app.listen('7777',() =>{
     console.log("Welcome to port 7777");
