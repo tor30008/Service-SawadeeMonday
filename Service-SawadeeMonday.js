@@ -18,6 +18,16 @@ const storage = multer.diskStorage({
     }
 });
 
+const fileuploadMiddleware = (res,req,next) => {
+    if(res.file){
+        console.log("Have file");
+    }
+    else{
+        console.log("Dont have file");
+    }
+    next();
+}
+
 const upload = multer({storage:storage})
 
 app.use(cors({
@@ -67,7 +77,6 @@ app.use((req,res,next) => {
 
 })
 app.get('/Type_player',(req,res) => {
-    console.log("Type Player");
     con.query("Select * From Type_player",function(err,result,field){
         res.json(result);
    });
@@ -79,10 +88,6 @@ app.use('/uploads', express.static('uploads'));
 app.post('/Add_player',upload.single('image'),(req,res) =>{
 
     upload.single(req.body.image);
-
-    console.log(req.body.Name);
-
-    console.log(req.file.filename);
 
     const path_server  = "http://127.0.0.1:7777/"+uploadDirectory+req.file.filename; // ที่อยู่ในการลง DB แล้วเวลาเรียกก็สามารถใช้ได้เลย
 
@@ -131,12 +136,65 @@ app.post('/Deleteplayer',(req,res)=>{
 });
 
 app.get('/Allplayer',(req,res) =>{
-    console.log("Hello Function get All Player");
     con.query("Select * From Player",function(err,result,field){
         res.json(result);
     });
 });
 
+
+app.post('/Player',(req,res) => {
+    const wheredata = {
+        Player_id : req.body.Player_id
+    }
+    const mysql = "SELECT Player_id,Player_name,Player_tel,Type_id,Player_photo From Player WHERE ?";
+
+    con.query(mysql,[wheredata],(error,results) => {
+        if(error){
+            console.log(error);
+        }
+        else{
+            res.json(results);
+        }
+    })
+});
+
+app.post('/Editplayer',upload.single('image'),fileuploadMiddleware,(req,res) => {
+
+    console.log(req.body);
+
+    let value;
+    let mysql;
+
+    if(req.file){
+        const path_server  = "http://127.0.0.1:7777/"+uploadDirectory+req.file.filename; // ที่อยู่ในการลง DB แล้วเวลาเรียกก็สามารถใช้ได้เลย
+        mysql = "UPDATE Player SET ? WHERE Player_id = ?";
+        value = {
+            Player_name : req.body.Name,
+            Player_tel : req.body.Phone,
+            Type_id : req.body.Type,
+            Player_photo : path_server,
+        }
+    }
+    else{
+        mysql = "UPDATE Player SET ? WHERE Player_id = ?";
+        value = {
+            Player_name : req.body.Name,
+            Player_tel : req.body.Phone,
+            Type_id : req.body.Type,
+        }
+    }
+    con.query(mysql,[value,req.body.Player_id],(err,result) => {
+        try{
+            if(!err){
+                res.json(true);
+            }else{
+                res.json(false);
+            }
+        }catch(error){
+            console.error(err);
+        }
+    });
+})
 
 app.listen('7777',() =>{
     console.log("Welcome to port 7777");
