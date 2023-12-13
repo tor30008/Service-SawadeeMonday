@@ -136,7 +136,7 @@ app.post('/Deleteplayer',(req,res)=>{
 });
 
 app.get('/Allplayer',(req,res) =>{
-    con.query("Select * From Player",function(err,result,field){
+    con.query("Select * From Player JOIN Type_player WHERE Player.Type_id = Type_player.Type_id;",function(err,result,field){
         res.json(result);
     });
 });
@@ -159,8 +159,6 @@ app.post('/Player',(req,res) => {
 });
 
 app.post('/Editplayer',upload.single('image'),fileuploadMiddleware,(req,res) => {
-
-    console.log(req.body);
 
     let value;
     let mysql;
@@ -195,6 +193,75 @@ app.post('/Editplayer',upload.single('image'),fileuploadMiddleware,(req,res) => 
         }
     });
 })
+
+app.post('/Addcourt',(req,res) => {
+
+    const data = {
+        Court_name : req.body.Name,
+        Court_price : req.body.Price,
+        Court_status:1
+    }
+    const mysql = "INSERT INTO Court_badminton SET ?";
+    con.query(mysql,data,function(err,result){
+        try{
+            res.json(result.insertId);
+        }catch(error){
+           console.log(error);
+        }
+    });
+})
+
+app.post('/Allcourt',(req,res) => {
+    const mysql = "SELECT * FROM Court_badminton";
+    con.query(mysql,(err,result) => {
+        try{
+            res.json(result);
+            console.log(err);
+        }catch(error){
+            console.log(error);
+        }
+    })
+});
+
+app.post('/Editcourt',(req,res) => {
+    console.log(req.body);
+    let mysql = "UPDATE Court_badminton SET ? WHERE Court_Id = ?";
+    let Where_id = req.body.Court_Id;
+    let data = {
+        Court_name : req.body.Court_name,
+        Court_price : req.body.Court_price
+    }
+    con.query(mysql,[data,Where_id],function(err,result) {
+        try{
+            if(!err){
+                res.json(true);
+            }
+            else{
+                res.json(false);
+                //console.log(err);
+            }
+        }catch(error){
+            console.log(error)
+        }
+    })
+});
+
+app.post('/Editcourtstatus',(req,res) => { 
+    console.log(req.body);
+    let mysql = "UPDATE Court_badminton SET ? WHERE Court_id = ?";
+    let data = {
+        Court_status : req.body.Court_status
+    }
+    con.query(mysql,[data,req.body.Court_Id],(err,result) => {
+        if(!err){
+            console.log(result);
+            res.json(true);
+        }
+        else{
+            console.log(err);
+        }
+    })
+});
 
 app.listen('7777',() =>{
     console.log("Welcome to port 7777");
