@@ -21,8 +21,6 @@ const io = socketIO(server);
 
 
 
-
-
 const storage = multer.diskStorage({
     destination:function(req,file,cb){
         cb(null,uploadDirectory);
@@ -94,7 +92,12 @@ app.get('/Type_player',(req,res) => {
    });
 });// API ดึงประเภทมือขึ้นมา
 
-
+// CRUD
+// C = Create post
+// R = READ get
+// U = UPDATE patch
+// D = DELETE
+// ลองเปลี่ยนเป็นแบบนี้
 
 app.use('/uploads', express.static('uploads'));
 app.post('/Add_player',upload.single('image'),(req,res) =>{
@@ -328,26 +331,66 @@ app.listen('7777',() =>{
     console.log("Welcome to port 7777");
 });//port ของ Restful api
 
+app.post('/getmatching_willplaying',(req,res) => {
+    try{
+        let date = new Date();
+        let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
+        let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
+        let mysql = "SELECT * FROM Match_badminton  WHERE Match_timestart Between '"+start_date+"' AND '"+end_date+"'";
+        var i = 0;
+        con.query(mysql,(err,result) => {
+            if(!err){
+                //res.json(result);
+                result.forEach((element,index) => {
+                    if( i <= result.length){
+                           con.query("SELECT Player_name FROM Player WHERE Player_id =' "+element.Teamone_playerone+"'",(err,data) => {
+                            result[index]['Teamone_Playerone_name'] = data[0].Player_name;
+                           })// teamone_Playerone_id ไปเอาชื่อ teamone_Playerone_name
+                           con.query("SELECT Player_name FROM Player WHERE Player_id =' "+element.Teamone_playertwo+"'",(err,data) => {
+                               result[index]['Teamone_Playertwo_name'] = data[0].Player_name;
+                           })// teamone_Playertwo_id ไปเอาชื่อ teamone_playertwo_name
+                           con.query("SELECT Player_name FROM Player WHERE Player_id =' "+element.Teamtwo_playerone+"'",(err,data) => {
+                               result[index]['Teamtwo_Playerone_name'] = data[0].Player_name;
+                           })// teamtwo_Playerone_id ไปเอาชื่อ teamtwo_playerone_name
+                           con.query("SELECT Player_name FROM Player WHERE Player_id =' "+element.Teamtwo_playertwo+"'",(err,data) => {
+                               result[index]['Teamtwo_Playertwo_name'] = data[0].Player_name;
+                               result[index]['Match_timestart_convert'] = convert_time_db(element.Match_timestart);
+                               if(index == (result.length - 1)){
+                                res.json(result);
+                                }
+                           })// teamtwo_Playertwo_id ไปเอาชื่อ teamtwo_playertwo_name
+                           //ถ้าถึง รอบสุดท้ายของ Loop ให้ทำการส่งค่าไปเลย ที่ไม่แยกออกมาเพราะว่ามันทำงานเร็วกว่า call back เลยต้องยัดไว้ในนี้
+                    } // เช็คเพื่อให้รอบมันเท่ากัน นับจริง กับ โค๊ดนับ  
+                    else{
+                        //res.json(result);
+                    }
+                   
+                    //console.log(result);
+                });
+               // console.log(result);
+            }
+            console.log(result);
+        })
+    }catch(error) {
+        console.log(error);
+    }
+})
 server.listen('1111',() => {
     console.log('1111');
 })// port ของ socket
 
 io.on('connection', (socket) => { 
     console.log("io online");
-    //console.log(socket);
 
     socket.emit('M','Test by server');
     socket.on("MFC",(data) => {
         console.log(data);
     });
-   /* socket.on('dis',() => { 
-        console.log('dis connect');
-    })*/
 
 
-
+    //socket.emit("listplayertodayFromServer","First time load player today");
     socket.on('join',(req) => {
-        console.log(req);
+        //console.log(req);
         const data = { 
             Player_id : req.Player_id,
             Joinday_status: req.Joinday_status
@@ -359,6 +402,7 @@ io.on('connection', (socket) => {
         let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
         let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
 
+        let queue_today = {};
 
         con.query(mysql,data,(err,result) => { 
             if(!err){
@@ -369,9 +413,9 @@ io.on('connection', (socket) => {
                     res['listjoinday'] = result;
                     mysql = "SELECT * FROM Player WHERE Player.Player_id NOT IN (SELECT Joinday_badminton.Player_id FROM Joinday_badminton WHERE Joinday_badminton.Joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"')";
                     con.query(mysql,(err,result) => { 
-                        res['listplayer'] = result 
+                        res['listplayer'] = result;
                         socket.emit('listplayertodayFromserver',res); 
-                        console.log(res);
+                        //console.log(res);
                     })// query คนที่ยังไม่ลงชื่อวันนี้
                 }
                })
@@ -379,5 +423,245 @@ io.on('connection', (socket) => {
                 console.log(err);
             }
         });
-    })
+        mysql = "SELECT *  FROM Joinday_badminton JOIN Player ON Player.Player_id = Joinday_badminton.Player_id  WHERE Joinday_badminton.joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"' ORDER BY RAND()"; 
+        // Random คนที่ มาตีทั้งหมด 
+        con.query(mysql,(err,result) => { 
+           //console.log(result);
+           res['listqueuetoday'] = result;
+          //queue_today['queue_today'] = result;
+           // เก็บข้อมูล queue ตัวแปล queue_today;
+           //console.log(result.length);
+           let Total_jointoday = result.length;
+          // let Queuematch = new Array(Math.floor(Total_jointoday/4)); // Match 1 เอา 4 คนเลยหาจำนวนทีมก่อน
+           let Queuematch = Array.from({length : Math.floor(Total_jointoday/4)},() => Array(4).fill(0));
+           let many_notteam = (Total_jointoday / 4) - (Math.floor(Total_jointoday/4)) ;
+           let cursor = 0;// ตัวไว้เช็คดึงข้อมูลเข้า 1 ทีม 4 คน
+           //console.log(many_notteam);
+           for(let i = 0 ; i< Queuematch.length;i++){
+                for(let j = 0;j <= 3 ;j++){
+                    if(j <= 3)
+                    {
+                        Queuematch[i][j] = result[cursor];
+                        ++cursor;
+                    }
+                }         
+           }
+           console.log(Queuematch.length);
+           console.log(Queuematch);
+           queue_today['queue_match'] = Queuematch;
+           if(many_notteam != 0){
+            let row = 0; // row player ที่ยังไม่มีทีม
+            if(many_notteam == 0.25) {
+                var player_notteam = new Array(1);
+                row = 1;
+            };
+            if(many_notteam == 0.5)  {
+                var player_notteam = new Array(2);
+                row = 2;
+            };
+            if(many_notteam == 0.75) {
+                var player_notteam = new Array(3);
+                row = 3;
+            };
+ 
+            let cursor_notteam = 0 ;
+                console.log("คนขาดกี่คน :"+many_notteam);
+                console.log("จำนวนคนที่ลงชื่อ : "+result.length);
+                //console.log(result[result.length-1]);
+                var row_true = result.length - 1;
+                for(let i = 0 ; i < row ; ++i){
+                    player_notteam[cursor_notteam] = result[row_true-i];
+                    ++cursor_notteam;
+                }
+                //console.log(player_notteam);
+                queue_today['player_notqueue'] = player_notteam;
+               // console.log("server sent data");
+           }
+           else {
+            console.log("All people Have Team Bro");
+           }
+           //socket.emit('listplayertodayFromserver',res); 
+           socket.emit('queuebyserver',queue_today);
+        })
+
+    })// ลงชื่อตี Badminton
+
+    socket.on('Select_playerone',(req) => {
+        let date = new Date();
+        let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
+        let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
+
+        let mysql = "SELECT * FROM Joinday_badminton JOIN Player ON Player.Player_id = Joinday_badminton.Player_id WHERE Joinday_badminton.joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"' AND Joinday_status = true";
+        con.query(mysql,(err,result) => { 
+            socket.emit("res_Playerone-readytoplay",result);
+        }); // เลือกผู้เล่นตีแบด
+    })// รายชื่อเลือกผู้เล่น คนที่ 1
+
+    socket.on("Select_playertwo",(req) => { 
+        let date = new Date();
+        let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
+        let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
+        let mysql = "SELECT * FROM Joinday_badminton JOIN Player ON Player.Player_id = Joinday_badminton.Player_id WHERE Joinday_badminton.joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"' AND Joinday_status = true AND Joinday_Badminton.Player_id != "+req;   
+        
+        con.query(mysql,(err,result) => { 
+            socket.emit("res_Playertwo-readytoplay",result);
+        });
+    }) // รายชื่อเลือกผู้เล่นคนที่ 2
+
+    socket.on("Select_playerthree",(req) => {
+        let date = new Date();
+        let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
+        let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
+        let mysql = "SELECT * FROM Joinday_badminton JOIN Player ON Player.Player_id = Joinday_badminton.Player_id WHERE Joinday_badminton.joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"' AND Joinday_status = true AND Joinday_Badminton.Player_id != "+req.Playerone_id+ " AND Joinday_Badminton.Player_id != "+req.Playertwo_id;   
+
+        con.query(mysql,(err,result) => { 
+            socket.emit("res_Playerthree-readytoplay",result);
+        })
+    });// รายชื่อเลือกผู้เล่นคนที่ 3 
+
+    socket.on("Select_playerfour",(req) => {
+        let date = new Date();
+        let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
+        let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
+        let mysql = "SELECT * FROM Joinday_badminton JOIN Player ON Player.Player_id = Joinday_badminton.Player_id WHERE Joinday_badminton.joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"' AND Joinday_status = true AND Joinday_Badminton.Player_id != "+req.Playerone_id+ " AND Joinday_Badminton.Player_id != "+req.Playertwo_id + " AND Joinday_Badminton.Player_id != "+req.Playerthree_id;
+
+        con.query(mysql,(err,result) => {
+            console.log(result);
+            socket.emit("res_Playerfour-readytoplay",result);
+        }); 
+    });// รายชื่อไว้เลือกผู้เล่นคนที่ 4
+
+    socket.on("Submitdraftmatch_to_server",(req) => {
+        let date = new Date();
+        let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
+        let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
+
+        let mysql =  "UPDATE Joinday_badminton SET Joinday_round = IFNULL(joinday_round, 0) + 1, Joinday_status = 'Playing' WHERE Player_id = "+req.Playerone_id+" AND Joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"'";
+        con.query(mysql,(err,result) => {
+           if(err){
+            console.log(err);
+            console.log("Error change Status Playerone_id = True In DB Joinday_badminton status");
+           }
+        }); //อัพเดท Status Playerone_id จาก พร้อมตี (true) ไปเป็น Playing
+
+        mysql =  "UPDATE Joinday_badminton SET Joinday_round = IFNULL(joinday_round, 0) + 1, Joinday_status = 'Playing' WHERE Player_id = "+req.Playertwo_id+" AND Joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"'";
+        con.query(mysql,(err,result) => {
+            if(err){
+                console.log("Error change Status Playertwo_id = True In DB Joinday_badminton status");
+            }
+        }); //อัพเดท Status Playertwo_id จาก พร้อมตี (true) ไปเป็น Playing
+
+        mysql =  "UPDATE Joinday_badminton SET Joinday_round = IFNULL(joinday_round, 0) + 1, Joinday_status = 'Playing' WHERE Player_id = "+req.Playerthree_id+" AND Joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"'";
+        con.query(mysql,(err,result) => {
+            if(err){
+                console.log("Error change Status Playerthree_id = True In DB Joinday_badminton status");
+            }
+        }); //อัพเดท Status Playerthree_id จาก พร้อมตี (true) ไปเป็น Playing
+
+        mysql =  "UPDATE Joinday_badminton SET Joinday_round = IFNULL(joinday_round, 0) + 1, Joinday_status = 'Playing' WHERE Player_id = "+req.Playerfour_id+" AND Joinday_starttime BETWEEN '"+start_date+"' AND '"+end_date+"'";
+        con.query(mysql,(err,result) => {
+            if(err){
+                console.log("Error change Status Playerfour_id = True In DB Joinday_badminton status");
+            }
+        }); //อัพเดท Status Playerfour_id จาก พร้อมตี (true) ไปเป็น Playing
+
+        mysql = "INSERT INTO Match_badminton SET ?";
+        let data = {
+            Teamone_playerone : req.Playerone_id,
+            Teamone_playertwo : req.Playertwo_id,
+            Teamtwo_playerone : req.Playerthree_id,
+            Teamtwo_playertwo : req.Playerfour_id,
+            Match_timestart: new Date(),
+            Match_status : false,
+            Court_id:req.Court_id
+        }
+
+        con.query(mysql,data,(err,result) => {
+            console.log(err);
+        });
+
+    })// จัดแข่งแมต 4 คน แล้วเอาลง DB
+
+    /*socket.emit("Listmatchplaying_to_server",(req) => {
+        let date = new Date();
+        let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
+        let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
+        let mysql = "SELECT * FROM Match_badminton WHERE Match_timestart Between '"+start_date+"' AND '"+end_date+"'";
+        con.query(mysql,(err,result) => {
+            console.log(result);
+            socket.on("Listmatchplaying_from_server",result);
+            console.log(result);
+        });
+    });// ดึงข้อมูลที่ยังตีอยู่ = ยังตีไม่เสร็จขึ้นมา*/
 })
+
+const convert_time_db = (time) => { 
+    var time_to_convert = new Date(time);
+    var format = time_to_convert.toLocaleString('en-US',{
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit', 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit'
+    }).replace(',','');
+    return format;
+}
+
+/* Nodejs
+    ใช้ express router พยายามแยกไฟล์เป็น module
+    ใช้ ORM eg. sequlize
+    ใช้ jwt token
+    ใช้ .env
+    set route ตาม pattern CRUD, CREATE method post, UPDATE method patch, DELETE method delete, R method GET
+*/
+
+/*
+    react 
+    จัด structure แยกเป็นส่วน
+    แยก config ไว้ใน .env
+    ใช้ await แล้วใช้ try catch ครอบไม่ต้อง then แล้ว
+    ฟังชันที่ใช้บ่อยๆ ยุบเป็นอันเดียว เช่น ตอนใช้ axios แล้วต้อง .data ให้ใช้ฟังชันแล้วโยน ค่าเข้าไป
+    
+    await axios
+      .get("http://127.0.0.1:7777/Type_player")
+      .then((res) => {
+        //setlisttype(res.data)
+        setlisttype(res.data);
+        setloading(false);
+      })
+      .catch((error) => {
+        console.log(error);
+      })
+      .finally(() => {});
+
+    |
+    |
+    |
+    |
+    v
+    try{
+        let res = await axios.get("http://127.0.0.1:7777/Type_player")
+        setlisttype(res.data);
+        setloading(false);
+    }catch(err){
+        console.log(err)
+    }
+*/
+
+/*
+
+teen แนะนำ
+เรียนรู้การใช้ middleware
+เพิ่มการจับ x-content
+ลองเรียน upload file 
+เพิ่มการ conversion date
+
+
+ยกตัวอย่าง Mapper
+["statusCode":"00000",
+"statusmessage":"file is pro",
+"data":null]
+*/
+
+
