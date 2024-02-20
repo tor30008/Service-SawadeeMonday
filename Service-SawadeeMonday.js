@@ -239,7 +239,6 @@ app.post('/Allcourt',(req,res) => {
 });
 
 app.post('/Editcourt',(req,res) => {
-    console.log(req.body);
     let mysql = "UPDATE Court_badminton SET ? WHERE Court_Id = ?";
     let Where_id = req.body.Court_Id;
     let data = {
@@ -262,7 +261,6 @@ app.post('/Editcourt',(req,res) => {
 });
 
 app.post('/Editcourtstatus',(req,res) => { 
-    console.log(req.body);
     let mysql = "UPDATE Court_badminton SET ? WHERE Court_id = ?";
     let data = {
         Court_status : req.body.Court_status
@@ -375,6 +373,46 @@ app.post('/getmatching_willplaying',(req,res) => {
         console.log(error);
     }
 })
+
+app.post('/AddShuttercock',(req,res) => { 
+
+    var data = {
+        Type_BB_name : req.body.Name,
+        Type_BB_price : req.body.Price,
+        Type_BB_speed : req.body.Speed,
+        Type_BB_status : true
+    }
+    var mysql = "INSERT INTO Type_badmintonball SET ?";
+    con.query(mysql,data,(err,result) => {
+       if(!err){
+        res.json(true);
+       }
+    });
+
+});//เพิ่มลูกแบด ลงใน Type_Badmintonball
+
+app.get('/GetShuttercock',(req,res) => { 
+    let mysql = "Select * From Type_badmintonball";
+
+    con.query(mysql,(err,result) => {
+        //console.log(result);
+        //console.log(err);
+        res.json(result);
+    });
+});
+app.patch('/EditShuttercock',(req,res) => {
+    let mysql = "UPDATE Type_badmintonball SET ? WHERE Type_BB_id = ?";
+    let data = {
+        Type_BB_name : req.body.Type_BB_name,
+        Type_BB_speed : req.body.Type_BB_speed,
+        Type_BB_price : req.body.Type_BB_price
+    }
+    con.query(mysql,[data,req.body.Type_BB_id],(err,result) => {
+        if(!err){
+            res.json(true);
+        }
+    })
+});
 server.listen('1111',() => {
     console.log('1111');
 })// port ของ socket
@@ -532,6 +570,7 @@ io.on('connection', (socket) => {
     });// รายชื่อไว้เลือกผู้เล่นคนที่ 4
 
     socket.on("Submitdraftmatch_to_server",(req) => {
+        console.log(req);
         let date = new Date();
         let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
         let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
@@ -577,12 +616,46 @@ io.on('connection', (socket) => {
         }
 
         con.query(mysql,data,(err,result) => {
-            console.log(err);
-        });
+            if(!err){
+                console.log(req.Type_BB_id);
+                mysql = "INSERT INTO Match_Type_badmintonball SET ?";
+                data = {
+                    Match_id : result.insertId,
+                    Type_badmintonball_id : req.Type_BB_id,
+                    MTB_TIME : date
+                }
+                con.query(mysql,data,(err,result) => {
+                    if(!err){
+                        socket.emit("")
+                    }
+                    console.log(result);
+                    console.log(err);
+                }) // เก็บประวัติ การใช้ลูกแบดแต่ละ Match
+            }
+            
+
+            //console.log(err);
+        });// จัดแมต 4 คน ลง DB
 
     })// จัดแข่งแมต 4 คน แล้วเอาลง DB
 
-    /*socket.emit("Listmatchplaying_to_server",(req) => {
+    socket.on("Changestatus_shuttercock_to_server",(req) => {
+        let mysql = "UPDATE Type_badmintonball SET Type_BB_status = ? WHERE Type_BB_id = ?";
+        con.query(mysql,[req.Type_BB_status,req.Type_BB_id],(err,result) => {
+            RT_getall_type_bb(socket);
+        })
+    });// Update status Shuttercock เปิด ปิด การใช้งานของข้อมูลพื้นฐานของลูก Type_bb_id 
+
+    socket.on("Delete_Shuttercock_From_Client",(req) => {
+        let mysql = "Delete From Type_badmintonball WHERE Type_BB_id = ?";
+        con.query(mysql,[req.Type_BB_id],(err,result) => {
+            if(!err){
+                RT_getall_type_bb(socket);
+            }
+        });
+    });
+
+    socket.emit("Listmatchplaying_to_server",(req) => {
         let date = new Date();
         let start_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 00:00:00.000000";
         let end_date = date.getFullYear() +':'+(date.getMonth() + 1)+":"+date.getDate()+" 23:59:59.999999";
@@ -594,6 +667,13 @@ io.on('connection', (socket) => {
         });
     });// ดึงข้อมูลที่ยังตีอยู่ = ยังตีไม่เสร็จขึ้นมา*/
 })
+
+const RT_getall_type_bb = (socket) => {
+    let mysql = "SELECT * FROM Type_Badmintonball";
+    con.query(mysql,(err,result) => {
+        socket.emit("RT_getall_type_bb",result);
+    });
+}// ส่งข้อมูล Real time All shuttercock
 
 const convert_time_db = (time) => { 
     var time_to_convert = new Date(time);
